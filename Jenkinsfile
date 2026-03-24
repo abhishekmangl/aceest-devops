@@ -1,0 +1,144 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// ACEest Fitness & Gym – Jenkinsfile (Declarative Pipeline)
+// Handles the BUILD phase: checkout → lint → build Docker → test
+// ──────────────────────────────────────────────────────────────────────────────
+
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = 'aceest-fitness'
+        IMAGE_TAG  = "${env.BUILD_NUMBER}"
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
+    stages {
+
+        // ── Stage 1: Checkout ────────────────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                echo 'Pulling latest code from GitHub...'
+                checkout scm
+            }
+        }
+
+        // ── Stage 2: Environment Setup ───────────────────────────────────────
+        stage('Environment Setup') {
+            steps {
+                echo 'Setting up Python virtual environment...'
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip --quiet
+                    pip install -r requirements.txt --quiet
+                    pip install flake8 --quiet
+                '''
+            }
+        }
+
+        // ── Stage 3: Lint ────────────────────────────────────────────────────
+        stage('Lint') {
+            steps {
+                echo 'Running flake8 linter...'
+                sh '''
+                    . venv/bin/activate
+                    flake8 app.py --count --select=E9,F63,F7,F82 \
+                        --show-source --statistics
+                    flake8 app.py --count --max-line-length=100 --statistics
+                '''
+            }
+        }
+
+        // ── Stage 4: Unit Tests ──────────────────────────────────────────────
+        stage('Unit Tests') {
+            steps {
+                echo 'Running Pytest suite...'
+                sh '''
+                    . venv/bin/activate
+                    pytest test_app.py -v \
+                        --tb=short \
+                        --junitxml=test-results.xml \
+                        --cov=app \
+                        --cov-report=xml:coverage.xml
+                '''
+            }
+            post {
+                always {
+                    junit 'test-results.xml'
+                }
+            }
+        }
+
+        // ── Stage 5: Docker Build ────────────────────────────────────────────
+        stage('Docker Build') {
+            steps {
+                echo "Building Docker image ${IMAGE_NAME}:${IMAGE_TAG}..."
+                sh """
+                    docker build \
+                        --no-cache \
+                        -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                        -t ${IMAGE_NAME}:latest \
+                        .
+                """
+            }
+        }
+
+        // ── Stage 6: Docker Smoke Test ───────────────────────────────────────
+        stage('Docker Smoke Test') {
+            steps {
+                echo 'Running smoke test on the Docker container...'
+                sh """
+                    docker run -d --name aceest-jenkins-${BUILD_NUMBER} \
+                        -p 5100:5000 ${IMAGE_NAME}:${IMAGE_TAG}
+                    sleep 6
+                    curl --fail http://localhost:5100/health
+                    docker stop aceest-jenkins-${BUILD_NUMBER}
+                    docker rm  aceest-jenkins-${BUILD_NUMBER}
+                """
+            }
+        }
+
+        // ── Stage 7: Quality Gate ────────────────────────────────────────────
+        stage('Quality Gate') {
+            steps {
+                echo 'Evaluating quality gate...'
+                sh '''
+                    . venv/bin/activate
+                    COVERAGE=$(python3 -c "
+import xml.etree.ElementTree as ET
+tree = ET.parse('coverage.xml')
+root = tree.getroot()
+print(float(root.attrib.get('line-rate', 0)) * 100)
+")
+                    echo "Test coverage: ${COVERAGE}%"
+                    python3 -c "
+import xml.etree.ElementTree as ET
+tree = ET.parse('coverage.xml')
+root = tree.getroot()
+rate = float(root.attrib.get('line-rate', 0)) * 100
+assert rate >= 70, f'Coverage {rate:.1f}% is below 70% threshold'
+print(f'Quality gate PASSED: {rate:.1f}% >= 70%')
+"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ BUILD #${BUILD_NUMBER} PASSED – ACEest image ready: ${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+        failure {
+            echo "❌ BUILD #${BUILD_NUMBER} FAILED – check the logs above."
+        }
+        always {
+            // Clean up venv to keep the workspace tidy
+            sh 'rm -rf venv || true'
+        }
+    }
+}
