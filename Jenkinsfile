@@ -9,6 +9,7 @@ pipeline {
     environment {
         IMAGE_NAME = 'aceest-fitness'
         IMAGE_TAG  = "${env.BUILD_NUMBER}"
+        DOCKER_HOST = 'unix:///var/run/docker.sock'
     }
 
     options {
@@ -79,7 +80,6 @@ pipeline {
             steps {
                 echo "Building Docker image ${IMAGE_NAME}:${IMAGE_TAG}..."
                 sh """
-                    sudo chmod 666 /var/run/docker.sock
                     docker build \
                         --no-cache \
                         -t ${IMAGE_NAME}:${IMAGE_TAG} \
@@ -94,7 +94,6 @@ pipeline {
             steps {
                 echo 'Running smoke test on the Docker container...'
                 sh """
-                    sudo chmod 666 /var/run/docker.sock
                     docker run -d --name aceest-jenkins-${BUILD_NUMBER} \
                         -p 5100:5000 ${IMAGE_NAME}:${IMAGE_TAG}
                     sleep 6
@@ -111,18 +110,12 @@ pipeline {
                 echo 'Evaluating quality gate...'
                 sh '''
                     . venv/bin/activate
-                    COVERAGE=$(python3 -c "
-import xml.etree.ElementTree as ET
-tree = ET.parse('coverage.xml')
-root = tree.getroot()
-print(float(root.attrib.get('line-rate', 0)) * 100)
-")
-                    echo "Test coverage: ${COVERAGE}%"
                     python3 -c "
 import xml.etree.ElementTree as ET
 tree = ET.parse('coverage.xml')
 root = tree.getroot()
 rate = float(root.attrib.get('line-rate', 0)) * 100
+print(f'Test coverage: {rate:.1f}%')
 assert rate >= 70, f'Coverage {rate:.1f}% is below 70% threshold'
 print(f'Quality gate PASSED: {rate:.1f}% >= 70%')
 "
