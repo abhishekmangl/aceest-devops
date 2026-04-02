@@ -79,6 +79,7 @@ pipeline {
             steps {
                 echo "Building Docker image ${IMAGE_NAME}:${IMAGE_TAG}..."
                 sh """
+                    sudo chmod 666 /var/run/docker.sock
                     docker build \
                         --no-cache \
                         -t ${IMAGE_NAME}:${IMAGE_TAG} \
@@ -93,6 +94,7 @@ pipeline {
             steps {
                 echo 'Running smoke test on the Docker container...'
                 sh """
+                    sudo chmod 666 /var/run/docker.sock
                     docker run -d --name aceest-jenkins-${BUILD_NUMBER} \
                         -p 5100:5000 ${IMAGE_NAME}:${IMAGE_TAG}
                     sleep 6
@@ -137,7 +139,6 @@ print(f'Quality gate PASSED: {rate:.1f}% >= 70%')
             echo "❌ BUILD #${BUILD_NUMBER} FAILED – check the logs above."
         }
         always {
-            // Clean up venv to keep the workspace tidy
             sh 'rm -rf venv || true'
         }
     }
