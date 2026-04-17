@@ -100,7 +100,10 @@ stage('Docker Build & Push') {
     steps {
         echo 'Running Docker smoke test...'
         sh '''
-            docker run -d -p 5100:5000 --name aceest-test $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG}
+            docker run -d -p 5100:5000 \
+                --name aceest-test \
+                abhishekmangl/aceest-fitness:${IMAGE_TAG}
+
             sleep 10
             curl -f http://localhost:5100/health
             docker rm -f aceest-test
