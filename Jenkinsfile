@@ -75,20 +75,38 @@ pipeline {
         }
 
         // ── Stage 5: Docker Build (skipped - permission issue on this server) ─
-        stage('Docker Build') {
-            steps {
-                echo "Docker image ${IMAGE_NAME}:${IMAGE_TAG} - skipped on this server"
-                echo "To enable: run 'sudo usermod -aG docker jenkins' on the EC2 instance"
-            }
+        
+stage('Docker Build & Push') {
+    steps {
+        echo "Building Docker image ${IMAGE_NAME}:${IMAGE_TAG}"
+
+        withCredentials([usernamePassword(
+            credentialsId: 'docker-hub-creds',
+            usernameVariable: 'DOCKER_USER',
+            passwordVariable: 'DOCKER_PASS'
+        )]) {
+            sh '''
+                docker login -u $DOCKER_USER -p $DOCKER_PASS
+                docker build -t $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG} .
+                docker push $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG}
+            '''
         }
+    }
+}
+
 
         // ── Stage 6: Docker Smoke Test (skipped) ─────────────────────────────
         stage('Docker Smoke Test') {
-            steps {
-                echo 'Docker Smoke Test - skipped on this server'
-                echo 'Container would be tested at http://localhost:5100/health'
-            }
-        }
+    steps {
+        echo 'Running Docker smoke test...'
+        sh '''
+            docker run -d -p 5100:5000 --name aceest-test $DOCKER_USER/${IMAGE_NAME}:${IMAGE_TAG}
+            sleep 10
+            curl -f http://localhost:5100/health
+            docker rm -f aceest-test
+        '''
+    }
+}
 
         // ── Stage 7: Quality Gate ────────────────────────────────────────────
         stage('Quality Gate') {
