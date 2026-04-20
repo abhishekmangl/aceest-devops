@@ -75,6 +75,16 @@ pipeline {
         }
 
         // ── Stage 5: Docker Build (skipped - permission issue on this server) ─
+// ── Stage 5: SonarQube Analysis ───────────────────────────────────────
+stage('SonarQube Analysis') {
+    steps {
+        echo 'Running SonarQube analysis...'
+        withSonarQubeEnv('SonarQube') {
+            sh 'sonar-scanner'
+        }
+    }
+}
+        
         
 stage('Docker Build & Push') {
     steps {
