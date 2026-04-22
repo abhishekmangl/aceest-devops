@@ -86,8 +86,7 @@ stage('SonarQube Analysis') {
             }
         }
     }
-}
-``        
+}       
         
 stage('Docker Build & Push') {
     steps {
