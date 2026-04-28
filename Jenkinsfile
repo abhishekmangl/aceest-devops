@@ -76,17 +76,33 @@ pipeline {
 
         // ── Stage 5: Docker Build (skipped - permission issue on this server) ─
 // ── Stage 5: SonarQube Analysis ───────────────────────────────────────
+// ── Stage 5: SonarQube Analysis ──────────────────────────────────────
 stage('SonarQube Analysis') {
     steps {
-        echo 'Running SonarQube analysis...'
-        script {
-            def scannerHome = tool 'SonarScanner'
-            withSonarQubeEnv('SonarQube') {
-                sh "${scannerHome}/bin/sonar-scanner"
-            }
+        echo 'Running SonarQube static code analysis...'
+        withCredentials([string(
+            credentialsId: 'sonarqube-token',
+            variable: 'SONAR_TOKEN'
+        )]) {
+            sh """
+                /var/lib/jenkins/tools/hudson.plugins.sonar.SonarRunnerInstallation/SonarScanner/bin/sonar-scanner \
+                    -Dsonar.projectKey=aceest-fitness \
+                    -Dsonar.projectName="ACEest Fitness" \
+                    -Dsonar.projectVersion=${BUILD_NUMBER} \
+                    -Dsonar.sources=app.py \
+                    -Dsonar.tests=test_app.py \
+                    -Dsonar.python.coverage.reportPaths=coverage.xml \
+                    -Dsonar.host.url=http://localhost:9000 \
+                    -Dsonar.login=\$SONAR_TOKEN
+            """
         }
     }
-}       
+    post {
+        failure {
+            echo 'SonarQube analysis failed - continuing pipeline'
+        }
+    }
+}
         
 stage('Docker Build & Push') {
     steps {
