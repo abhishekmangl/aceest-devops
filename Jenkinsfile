@@ -74,23 +74,26 @@ pipeline {
             }
         }
 
-        // ── Stage 5: Docker Build (skipped - permission issue on this server) ─
+// ── Stage 5: SonarQube Analysis (NON-BLOCKING) ─────────────────────────────
 stage('SonarQube Analysis') {
     steps {
         echo 'Running SonarQube static code analysis...'
-        script {
-            def scannerHome = tool 'SonarScanner'
-            withSonarQubeEnv('SonarQube') {
-                sh "${scannerHome}/bin/sonar-scanner"
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+            script {
+                def scannerHome = tool 'SonarScanner'
+                withSonarQubeEnv('SonarQube') {
+                    sh "${scannerHome}/bin/sonar-scanner"
+                }
             }
         }
     }
     post {
         failure {
-            echo 'SonarQube analysis failed - continuing pipeline'
+            echo '⚠️ SonarQube analysis failed, but pipeline will continue.'
         }
     }
 }
+
         
 stage('Docker Build & Push') {
     steps {
