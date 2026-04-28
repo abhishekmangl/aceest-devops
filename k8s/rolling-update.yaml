@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-rolling
+  namespace: aceest
+  labels:
+    app: aceest-fitness
+    strategy: rolling-update
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: aceest-fitness
+      strategy: rolling-update
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: aceest-fitness
+        strategy: rolling-update
+    spec:
+      containers:
+        - name: aceest
+          image: abhishekmangl/aceest-fitness:latest
+          ports:
+            - containerPort: 5000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
