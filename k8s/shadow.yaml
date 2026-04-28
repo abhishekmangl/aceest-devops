@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-production
+  namespace: aceest
+  labels:
+    app: aceest-fitness
+    env: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aceest-fitness
+      env: production
+  template:
+    metadata:
+      labels:
+        app: aceest-fitness
+        env: production
+    spec:
+      containers:
+        - name: aceest
+          image: abhishekmangl/aceest-fitness:latest
+          ports:
+            - containerPort: 5000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-shadow
+  namespace: aceest
+  labels:
+    app: aceest-fitness
+    env: shadow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aceest-fitness
+      env: shadow
+  template:
+    metadata:
+      labels:
+        app: aceest-fitness
+        env: shadow
+    spec:
+      containers:
+        - name: aceest
+          image: abhishekmangl/aceest-fitness:latest
+          ports:
+            - containerPort: 5000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-production-svc
+  namespace: aceest
+spec:
+  selector:
+    app: aceest-fitness
+    env: production
+  ports:
+    - port: 80
+      targetPort: 5000
+      nodePort: 30083
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-shadow-svc
+  namespace: aceest
+spec:
+  selector:
+    app: aceest-fitness
+    env: shadow
+  ports:
+    - port: 80
+      targetPort: 5000
+      nodePort: 30084
+  type: NodePort
